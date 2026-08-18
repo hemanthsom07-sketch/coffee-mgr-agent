@@ -150,15 +150,14 @@ async def websocket_endpoint(websocket: WebSocket):
             
             new_message = types.Content(parts=[types.Part(text=owner_reply)])
 
-            def run_agent():
-                return list(runner.run(
+            try:
+                events = []
+                async for event in runner.run_async(
                     user_id="local_user",
                     session_id="local_session",
                     new_message=new_message
-                ))
-
-            try:
-                events = await asyncio.to_thread(run_agent)
+                ):
+                    events.append(event)
 
                 final_response = "".join(
                     part.text
