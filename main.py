@@ -149,22 +149,33 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.send_text("_Agent is running tools and thinking..._")
             
             new_message = types.Content(parts=[types.Part(text=owner_reply)])
-            events = await asyncio.to_thread(
-                runner.run,
-                user_id="local_user",
-                session_id="local_session",
-                new_message=new_message
-            )
-            
-            final_response = "".join(
-                part.text
-                for event in events
-                if event.content and event.content.parts
-                for part in event.content.parts
-                if part.text
-            ) or "Agent completed execution updates without text output."
-            
-            await websocket.send_text(final_response.strip())
+
+            def run_agent():
+                return list(runner.run(
+                    user_id="local_user",
+                    session_id="local_session",
+                    new_message=new_message
+                ))
+
+            try:
+                events = await asyncio.to_thread(run_agent)
+
+                final_response = "".join(
+                    part.text
+                    for event in events
+                    if event.content and event.content.parts
+                    for part in event.content.parts
+                    if part.text
+                )
+
+                if not final_response.strip():
+                    final_response = "Agent completed execution, but returned no text response."
+
+                await websocket.send_text(final_response.strip())
+
+            except Exception as e:
+                print(f"WebSocket agent error: {e}")
+                await websocket.send_text(f"Agent error: {str(e)}")
             
     except WebSocketDisconnect:
         active_connections.remove(websocket)
